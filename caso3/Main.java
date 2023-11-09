@@ -1,98 +1,70 @@
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.TimeUnit;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class parteA {
-    private static volatile int foundValue = -1;
-    private static volatile String foundHash = null;
+public class Main {
 
     public static void main(String[] args) {
+
         Scanner scanner = new Scanner(System.in);
 
-        System.out.print("Ingrese el algoritmo (SHA-256 o SHA-512): ");
-        String algorithm = scanner.nextLine();
+        String cadena = "";
+        while (cadena.isEmpty()) {
+            System.out.println("Cadena de entrada: ");
+            cadena = scanner.nextLine().trim();
+        }
 
-        System.out.print("Ingrese la cadena de entrada (C): ");
-        String data = scanner.nextLine();
+        int numCeros = 0;
+        while (numCeros % 4 != 0 || numCeros < 20 || numCeros > 36) {
+            System.out.println("Bits en cero (20, 24, 28, 32 o 36): ");
+            numCeros = Integer.parseInt(scanner.nextLine().trim());
+        }
 
-        System.out.print("Ingrese el número de ceros buscados: ");
-        int numZeros = scanner.nextInt();
+        int numThreads = 0;
+        while (numThreads != 1 && numThreads != 2) {
+            System.out.println("Threads (1 o 2): ");
+            numThreads = Integer.parseInt(scanner.nextLine().trim());
+        }
 
-        System.out.print("Ingrese el número de threads (1 o 2): ");
-        int numThreads = scanner.nextInt();
+        String algoritmo = "";
+        while (!algoritmo.equals("SHA-256") && !algoritmo.equals("SHA-512")) {
+            System.out.println("Algoritmo de hash (SHA-256 o SHA-512): ");
+            algoritmo = scanner.nextLine().trim();
+        }
 
+        System.out.println();
         scanner.close();
 
-        long startTime = System.currentTimeMillis();
-        MineBitcoin(algorithm, data, numZeros, numThreads);
-        long endTime = System.currentTimeMillis();
-        long elapsedTime = endTime - startTime;
+        AtomicBoolean solucionado = new AtomicBoolean(false);
+        long iniciaTiempo = System.currentTimeMillis();
+        int valoresPosibles = (int) Math.pow(26, 7);
+        int rango = valoresPosibles / numThreads;
+        Proceso[] threads = new Proceso[numThreads];
 
-        System.out.println("Cadena de entrada (C): " + data);
-        System.out.println("Valor v encontrado: " + foundValue);
-        System.out.println("Hash: " + foundHash);
-        System.out.println("Tiempo de búsqueda: " + TimeUnit.MILLISECONDS.toSeconds(elapsedTime) + " segundos");
-    }
-
-    public static void MineBitcoin(String algorithm, String data, int numZeros, int numThreads) {
-        int range = (int) Math.pow(26, 7);
-        int threads = Math.min(numThreads, 2);
-
-        for (int i = 0; i < range && foundValue == -1; i++) {
-            final int start = i * range / threads;
-            final int end = (i + 1) * range / threads;
-
-            Thread[] minerThreads = new Thread[threads];
-            for (int t = 0; t < threads; t++) {
-                final int threadNum = t;
-                minerThreads[t] = new Thread(() -> {
-                    for (int v = start + threadNum; v < end && foundValue == -1; v++) {
-                        String combined = data + generateV(v);
-                        String hash = calculateHash(algorithm, combined);
-
-                        if (hash.startsWith("0".repeat(numZeros))) {
-                            foundValue = v;
-                            foundHash = hash;
-                        }
-                    }
-                });
-                minerThreads[t].start();
+        int i = 0;
+        while (i < numThreads) {
+            int inicio = i * rango;
+            int fin = (i + 1) * rango;
+            if (i == numThreads - 1) {
+                fin = valoresPosibles;
             }
+            threads[i] = new Proceso(solucionado, iniciaTiempo, cadena, algoritmo, numCeros, inicio, fin);
+            threads[i].start();
+            i++;
+        }
 
-            for (int t = 0; t < threads; t++) {
-                try {
-                    minerThreads[t].join();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+
+        for (Proceso thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
-    }
 
-    public static String calculateHash(String algorithm, String input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance(algorithm);
-            byte[] hashBytes = md.digest(input.getBytes());
-            StringBuilder sb = new StringBuilder();
-
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-            return "";
+        if (!solucionado.get()) {
+            long terminaTiempo = System.currentTimeMillis();
+            System.out.println("Tiempo: " + (terminaTiempo - iniciaTiempo) + " ms");
+            System.out.println("No hay solución.");
         }
-    }
-
-    public static String generateV(int v) {
-        StringBuilder result = new StringBuilder();
-        while (v > 0) {
-            result.insert(0, (char) ('a' + (v % 26)));
-            v /= 26;
-        }
-        return result.toString();
     }
 }
