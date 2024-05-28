@@ -67,4 +67,4 @@ public class Main {
             System.out.println("No hay solución.");
         }
     }
-}
+} 
